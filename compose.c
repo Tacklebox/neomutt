@@ -110,7 +110,10 @@ struct ComposeRedrawData
   enum AutocryptRec autocrypt_rec;
   int autocrypt_rec_override;
 #endif
-  struct MuttWindow *win;
+  struct MuttWindow *win_envelope; ///< Envelope: From, To, etc
+  struct MuttWindow *win_abar;     ///< Attachments label
+  struct MuttWindow *win_attach;   ///< List of Attachments
+  struct MuttWindow *win_cbar;     ///< Compose bar
 };
 
 #define CHECK_COUNT                                                            \
@@ -150,14 +153,13 @@ enum HeaderField
   HDR_XCOMMENTTO, ///< "X-Comment-To:" field
 #endif
   HDR_ATTACH_TITLE, ///< The "-- Attachments" line
-  HDR_ATTACH        ///< Where to start printing the attachments
 };
 
 int HeaderPadding[HDR_ATTACH_TITLE] = { 0 };
 int MaxHeaderWidth = 0;
 
 #define HDR_XOFFSET MaxHeaderWidth
-#define W (rd->win->state.cols - MaxHeaderWidth)
+#define W (rd->win_envelope->state.cols - MaxHeaderWidth)
 
 static const char *const Prompts[] = {
   /* L10N: Compose menu field.  May not want to translate. */
@@ -367,8 +369,8 @@ static void redraw_crypt_lines(struct ComposeRedrawData *rd)
   struct Email *e = rd->email;
 
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-  mutt_window_mvprintw(rd->win, HDR_CRYPT, 0, "%*s", HeaderPadding[HDR_CRYPT],
-                       _(Prompts[HDR_CRYPT]));
+  mutt_window_mvprintw(rd->win_envelope, HDR_CRYPT, 0, "%*s",
+                       HeaderPadding[HDR_CRYPT], _(Prompts[HDR_CRYPT]));
   mutt_curses_set_color(MT_COLOR_NORMAL);
 
   if ((WithCrypto & (APPLICATION_PGP | APPLICATION_SMIME)) == 0)
@@ -416,9 +418,9 @@ static void redraw_crypt_lines(struct ComposeRedrawData *rd)
   if (C_CryptOpportunisticEncrypt && (e->security & SEC_OPPENCRYPT))
     mutt_window_addstr(_(" (OppEnc mode)"));
 
-  mutt_window_clrtoeol(rd->win);
-  mutt_window_move(rd->win, HDR_CRYPTINFO, 0);
-  mutt_window_clrtoeol(rd->win);
+  mutt_window_clrtoeol(rd->win_envelope);
+  mutt_window_move(rd->win_envelope, HDR_CRYPTINFO, 0);
+  mutt_window_clrtoeol(rd->win_envelope);
 
   if (((WithCrypto & APPLICATION_PGP) != 0) &&
       (e->security & APPLICATION_PGP) && (e->security & SEC_SIGN))
@@ -442,14 +444,14 @@ static void redraw_crypt_lines(struct ComposeRedrawData *rd)
       (e->security & SEC_ENCRYPT) && C_SmimeEncryptWith)
   {
     mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-    mutt_window_mvprintw(rd->win, HDR_CRYPTINFO, 40, "%s", _("Encrypt with: "));
+    mutt_window_mvprintw(rd->win_envelope, HDR_CRYPTINFO, 40, "%s", _("Encrypt with: "));
     mutt_curses_set_color(MT_COLOR_NORMAL);
     mutt_window_printf("%s", NONULL(C_SmimeEncryptWith));
   }
 
 #ifdef USE_AUTOCRYPT
-  mutt_window_move(rd->win, HDR_AUTOCRYPT, 0);
-  mutt_window_clrtoeol(rd->win);
+  mutt_window_move(rd->win_envelope, HDR_AUTOCRYPT, 0);
+  mutt_window_clrtoeol(rd->win_envelope);
   if (C_Autocrypt)
   {
     mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
@@ -467,7 +469,7 @@ static void redraw_crypt_lines(struct ComposeRedrawData *rd)
     }
 
     mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-    mutt_window_mvprintw(rd->win, HDR_AUTOCRYPT, 40, "%s",
+    mutt_window_mvprintw(rd->win_envelope, HDR_AUTOCRYPT, 40, "%s",
                          /* L10N: The autocrypt compose menu Recommendation field.
                              Displays the output of the recommendation engine
                              (Off, No, Discouraged, Available, Yes) */
@@ -529,14 +531,14 @@ static void redraw_mix_line(struct ListHead *chain, struct ComposeRedrawData *rd
   char *t = NULL;
 
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-  mutt_window_mvprintw(rd->win, HDR_MIX, 0, "%*s", HeaderPadding[HDR_MIX],
-                       _(Prompts[HDR_MIX]));
+  mutt_window_mvprintw(rd->win_envelope, HDR_MIX, 0, "%*s",
+                       HeaderPadding[HDR_MIX], _(Prompts[HDR_MIX]));
   mutt_curses_set_color(MT_COLOR_NORMAL);
 
   if (STAILQ_EMPTY(chain))
   {
     mutt_window_addstr(_("<no chain defined>"));
-    mutt_window_clrtoeol(rd->win);
+    mutt_window_clrtoeol(rd->win_envelope);
     return;
   }
 
@@ -548,7 +550,7 @@ static void redraw_mix_line(struct ListHead *chain, struct ComposeRedrawData *rd
     if (t && (t[0] == '0') && (t[1] == '\0'))
       t = "<random>";
 
-    if (c + mutt_str_strlen(t) + 2 >= rd->win->state.cols)
+    if (c + mutt_str_strlen(t) + 2 >= rd->win_envelope->state.cols)
       break;
 
     mutt_window_addstr(NONULL(t));
@@ -635,7 +637,8 @@ static void draw_envelope_addr(int line, struct AddressList *al, struct ComposeR
   buf[0] = '\0';
   mutt_addrlist_write(al, buf, sizeof(buf), true);
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-  mutt_window_mvprintw(rd->win, line, 0, "%*s", HeaderPadding[line], _(Prompts[line]));
+  mutt_window_mvprintw(rd->win_envelope, line, 0, "%*s", HeaderPadding[line],
+                       _(Prompts[line]));
   mutt_curses_set_color(MT_COLOR_NORMAL);
   mutt_paddstr(W, buf);
 }
@@ -661,15 +664,15 @@ static void draw_envelope(struct ComposeRedrawData *rd)
   }
   else
   {
-    mutt_window_mvprintw(rd->win, HDR_TO, 0, "%*s",
+    mutt_window_mvprintw(rd->win_envelope, HDR_TO, 0, "%*s",
                          HeaderPadding[HDR_NEWSGROUPS], Prompts[HDR_NEWSGROUPS]);
     mutt_paddstr(W, NONULL(e->env->newsgroups));
-    mutt_window_mvprintw(rd->win, HDR_CC, 0, "%*s",
+    mutt_window_mvprintw(rd->win_envelope, HDR_CC, 0, "%*s",
                          HeaderPadding[HDR_FOLLOWUPTO], Prompts[HDR_FOLLOWUPTO]);
     mutt_paddstr(W, NONULL(e->env->followup_to));
     if (C_XCommentTo)
     {
-      mutt_window_mvprintw(rd->win, HDR_BCC, 0, "%*s",
+      mutt_window_mvprintw(rd->win_envelope, HDR_BCC, 0, "%*s",
                            HeaderPadding[HDR_XCOMMENTTO], Prompts[HDR_XCOMMENTTO]);
       mutt_paddstr(W, NONULL(e->env->x_comment_to));
     }
@@ -677,7 +680,7 @@ static void draw_envelope(struct ComposeRedrawData *rd)
 #endif
 
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-  mutt_window_mvprintw(rd->win, HDR_SUBJECT, 0, "%*s",
+  mutt_window_mvprintw(rd->win_envelope, HDR_SUBJECT, 0, "%*s",
                        HeaderPadding[HDR_SUBJECT], _(Prompts[HDR_SUBJECT]));
   mutt_curses_set_color(MT_COLOR_NORMAL);
   mutt_paddstr(W, NONULL(e->env->subject));
@@ -685,8 +688,8 @@ static void draw_envelope(struct ComposeRedrawData *rd)
   draw_envelope_addr(HDR_REPLYTO, &e->env->reply_to, rd);
 
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
-  mutt_window_mvprintw(rd->win, HDR_FCC, 0, "%*s", HeaderPadding[HDR_FCC],
-                       _(Prompts[HDR_FCC]));
+  mutt_window_mvprintw(rd->win_envelope, HDR_FCC, 0, "%*s",
+                       HeaderPadding[HDR_FCC], _(Prompts[HDR_FCC]));
   mutt_curses_set_color(MT_COLOR_NORMAL);
   mutt_paddstr(W, fcc);
 
@@ -698,8 +701,8 @@ static void draw_envelope(struct ComposeRedrawData *rd)
 #endif
 
   mutt_curses_set_color(MT_COLOR_STATUS);
-  mutt_window_mvaddstr(rd->win, HDR_ATTACH_TITLE, 0, _("-- Attachments"));
-  mutt_window_clrtoeol(rd->win);
+  mutt_window_mvaddstr(rd->win_abar, 0, 0, _("-- Attachments"));
+  mutt_window_clrtoeol(rd->win_abar);
 
   mutt_curses_set_color(MT_COLOR_NORMAL);
 }
@@ -734,7 +737,7 @@ static void edit_address_list(int line, struct AddressList *al, struct ComposeRe
   /* redraw the expanded list so the user can see the result */
   buf[0] = '\0';
   mutt_addrlist_write(al, buf, sizeof(buf), true);
-  mutt_window_move(rd->win, line, HDR_XOFFSET);
+  mutt_window_move(rd->win_envelope, line, HDR_XOFFSET);
   mutt_paddstr(W, buf);
 }
 
@@ -886,8 +889,8 @@ static void compose_custom_redraw(struct Menu *menu)
     menu_redraw_full(menu);
 
     draw_envelope(rd);
-    menu->offset = HDR_ATTACH;
-    menu->pagelen = menu->win_index->state.rows - HDR_ATTACH;
+    menu->offset = 0;
+    menu->pagelen = menu->win_index->state.rows;
   }
 
   menu_check_recenter(menu);
@@ -1130,27 +1133,45 @@ int mutt_compose_menu(struct Email *e, struct Buffer *fcc, struct Email *e_cur, 
   dlg->name = "compose";
 #endif
   dlg->type = WT_DIALOG;
-  struct MuttWindow *index =
+
+  struct MuttWindow *envelope =
+      mutt_window_new(MUTT_WIN_ORIENT_VERTICAL, MUTT_WIN_SIZE_FIXED,
+                      HDR_ATTACH_TITLE - 1, MUTT_WIN_SIZE_UNLIMITED);
+  envelope->type = WT_PAGER;
+
+  struct MuttWindow *abar = mutt_window_new(
+      MUTT_WIN_ORIENT_VERTICAL, MUTT_WIN_SIZE_FIXED, 1, MUTT_WIN_SIZE_UNLIMITED);
+  abar->type = WT_PAGER_BAR;
+
+  struct MuttWindow *attach =
       mutt_window_new(MUTT_WIN_ORIENT_VERTICAL, MUTT_WIN_SIZE_MAXIMISE,
                       MUTT_WIN_SIZE_UNLIMITED, MUTT_WIN_SIZE_UNLIMITED);
-  index->type = WT_INDEX;
-  struct MuttWindow *ibar = mutt_window_new(
+  attach->type = WT_INDEX;
+
+  struct MuttWindow *ebar = mutt_window_new(
       MUTT_WIN_ORIENT_VERTICAL, MUTT_WIN_SIZE_FIXED, 1, MUTT_WIN_SIZE_UNLIMITED);
-  ibar->type = WT_INDEX_BAR;
+  ebar->type = WT_INDEX_BAR;
 
   rd->email = e;
   rd->fcc = fcc;
-  rd->win = index;
+  rd->win_envelope = envelope;
+  rd->win_cbar = ebar;
+  rd->win_attach = attach;
+  rd->win_abar = abar;
 
   if (C_StatusOnTop)
   {
-    mutt_window_add_child(dlg, ibar);
-    mutt_window_add_child(dlg, index);
+    mutt_window_add_child(dlg, ebar);
+    mutt_window_add_child(dlg, envelope);
+    mutt_window_add_child(dlg, abar);
+    mutt_window_add_child(dlg, attach);
   }
   else
   {
-    mutt_window_add_child(dlg, index);
-    mutt_window_add_child(dlg, ibar);
+    mutt_window_add_child(dlg, envelope);
+    mutt_window_add_child(dlg, abar);
+    mutt_window_add_child(dlg, attach);
+    mutt_window_add_child(dlg, ebar);
   }
 
   notify_observer_add(NeoMutt->notify, mutt_dlg_compose_observer, dlg);
@@ -1158,11 +1179,11 @@ int mutt_compose_menu(struct Email *e, struct Buffer *fcc, struct Email *e_cur, 
 
   struct Menu *menu = mutt_menu_new(MENU_COMPOSE);
 
-  menu->pagelen = index->state.rows;
-  menu->win_index = index;
-  menu->win_ibar = ibar;
+  menu->pagelen = attach->state.rows;
+  menu->win_index = attach;
+  menu->win_ibar = ebar;
 
-  menu->offset = HDR_ATTACH;
+  menu->offset = 0;
   menu->make_entry = snd_make_entry;
   menu->tag = attach_tag;
 #ifdef USE_NNTP
