@@ -132,13 +132,13 @@ struct ComposeRedrawData
  */
 enum HeaderField
 {
-  HDR_FROM = 0, ///< "From:" field
-  HDR_TO,       ///< "To:" field
-  HDR_CC,       ///< "Cc:" field
-  HDR_BCC,      ///< "Bcc:" field
-  HDR_SUBJECT,  ///< "Subject:" field
-  HDR_REPLYTO,  ///< "Reply-To:" field
-  HDR_FCC,      ///< "Fcc:" (save folder) field
+  HDR_FROM = 0,         ///< "From:" field
+  HDR_TO,               ///< "To:" field
+  HDR_CC = HDR_TO + 2,  ///< "Cc:" field
+  HDR_BCC = HDR_CC + 2, ///< "Bcc:" field
+  HDR_SUBJECT,          ///< "Subject:" field
+  HDR_REPLYTO,          ///< "Reply-To:" field
+  HDR_FCC,              ///< "Fcc:" (save folder) field
 #ifdef MIXMASTER
   HDR_MIX, ///< "Mix:" field (Mixmaster chain)
 #endif
@@ -166,8 +166,10 @@ static const char *const Prompts[] = {
   N_("From: "),
   /* L10N: Compose menu field.  May not want to translate. */
   N_("To: "),
+  NULL,
   /* L10N: Compose menu field.  May not want to translate. */
   N_("Cc: "),
+  NULL,
   /* L10N: Compose menu field.  May not want to translate. */
   N_("Bcc: "),
   /* L10N: Compose menu field.  May not want to translate. */
@@ -291,6 +293,8 @@ static void init_header_padding(void)
   for (int i = 0; i < HDR_ATTACH_TITLE; i++)
   {
     if (i == HDR_CRYPTINFO)
+      continue;
+    if (!Prompts[i])
       continue;
     calc_header_width_padding(i, _(Prompts[i]), true);
   }
@@ -626,20 +630,115 @@ cleanup:
 
 /**
  * draw_envelope_addr - Write addresses to the compose window
- * @param line Line to write to (index into Prompts)
- * @param al   Address list to write
- * @param win  Window
+ * @param line      Line to write to (index into Prompts)
+ * @param al        Address list to write
+ * @param win       Window
+ * @param max_lines How many lines may be used
  */
-static void draw_envelope_addr(int line, struct AddressList *al, struct MuttWindow *win)
+static int draw_envelope_addr(int line, struct AddressList *al,
+                              struct MuttWindow *win, size_t max_lines)
 {
-  char buf[1024];
-
-  buf[0] = '\0';
-  mutt_addrlist_write(al, buf, sizeof(buf), true);
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
   mutt_window_mvprintw(win, line, 0, "%*s", HeaderPadding[line], _(Prompts[line]));
   mutt_curses_set_color(MT_COLOR_NORMAL);
-  mutt_paddstr(win->state.cols - MaxHeaderWidth, buf);
+
+  struct ListHead list = STAILQ_HEAD_INITIALIZER(list);
+  int count = mutt_addrlist_write_list(al, &list);
+
+  int lines_used = 1;
+  int addr_len;
+  int width_left = win->state.cols - MaxHeaderWidth;
+  int reserve;
+  char more[32];
+  int more_len = 0;
+
+  char *sep = NULL;
+  struct ListNode *next = NULL;
+  struct ListNode *np = NULL;
+  STAILQ_FOREACH(np, &list, entries)
+  {
+    next = STAILQ_NEXT(np, entries);
+    addr_len = mutt_strwidth(np->data);
+    if (next)
+    {
+      sep = ", ";
+      addr_len += 2;
+    }
+    else
+    {
+      sep = "";
+    }
+
+    count--;
+  try_again:
+    more_len = snprintf(more, sizeof(more),
+                        ngettext("(+%d more)", "(+%d more)", count), count);
+    mutt_debug(LL_DEBUG1, "text: '%s'  len: %d\n", more, more_len);
+
+    reserve = ((count > 0) && (lines_used == max_lines)) ? more_len : 0;
+    mutt_debug(LL_DEBUG1, "processing: %s (al:%ld, wl:%d, r:%d, lu:%ld)\n",
+               np->data, addr_len, width_left, reserve, lines_used);
+    if (addr_len >= (width_left - reserve))
+    {
+      mutt_debug(LL_DEBUG1, "not enough space\n");
+      if (lines_used == max_lines)
+      {
+        mutt_debug(LL_DEBUG1, "no more lines\n");
+        mutt_debug(LL_DEBUG1, "truncating: %s\n", np->data);
+        mutt_paddstr(width_left, np->data);
+        break;
+      }
+
+      if (width_left == (win->state.cols - MaxHeaderWidth))
+      {
+        mutt_debug(LL_DEBUG1, "couldn't print: %s\n", np->data);
+        mutt_paddstr(width_left, np->data);
+        break;
+      }
+
+      mutt_debug(LL_DEBUG1, "start a new line\n");
+      mutt_window_clrtoeol(win);
+      line++;
+      lines_used++;
+      width_left = win->state.cols - MaxHeaderWidth;
+      mutt_window_move(win, line, MaxHeaderWidth);
+      goto try_again;
+    }
+
+    if (addr_len < width_left)
+    {
+      mutt_debug(LL_DEBUG1, "space for: %s\n", np->data);
+      mutt_window_addstr(np->data);
+      mutt_window_addstr(sep);
+      width_left -= addr_len;
+    }
+    mutt_debug(LL_DEBUG1, "%ld addresses remaining\n", count);
+    mutt_debug(LL_DEBUG1, "%ld lines remaining\n", max_lines - lines_used);
+  }
+  mutt_list_free(&list);
+
+  if (count > 0)
+  {
+    mutt_window_move(win, line, win->state.cols - more_len);
+    mutt_window_addstr(more);
+    // mutt_window_addch(' ');
+    mutt_debug(LL_DEBUG1, "%ld more (len %d)\n", count, more_len);
+  }
+  else
+  {
+    // mutt_window_printf("CLR 0");
+    mutt_window_clrtoeol(win);
+  }
+
+  for (int i = lines_used; i < max_lines; i++)
+  {
+    mutt_window_move(win, line + i, 0);
+    // mutt_window_printf("CLR %d", i);
+    mutt_window_clrtoeol(win);
+  }
+
+  mutt_debug(LL_DEBUG1, "used %d lines\n", lines_used);
+  return lines_used;
 }
 
 /**
@@ -651,7 +750,7 @@ static void draw_envelope(struct ComposeRedrawData *rd)
   struct Email *e = rd->email;
   const char *fcc = mutt_b2s(rd->fcc);
 
-  draw_envelope_addr(HDR_FROM, &e->env->from, rd->win_envelope);
+  draw_envelope_addr(HDR_FROM, &e->env->from, rd->win_envelope, 1);
 
 #ifdef USE_NNTP
   if (OptNewsSend)
@@ -672,9 +771,9 @@ static void draw_envelope(struct ComposeRedrawData *rd)
   else
 #endif
   {
-    draw_envelope_addr(HDR_TO, &e->env->to, rd->win_envelope);
-    draw_envelope_addr(HDR_CC, &e->env->cc, rd->win_envelope);
-    draw_envelope_addr(HDR_BCC, &e->env->bcc, rd->win_envelope);
+    draw_envelope_addr(HDR_TO, &e->env->to, rd->win_envelope, 2);
+    draw_envelope_addr(HDR_CC, &e->env->cc, rd->win_envelope, 2);
+    draw_envelope_addr(HDR_BCC, &e->env->bcc, rd->win_envelope, 1);
   }
 
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
@@ -683,7 +782,7 @@ static void draw_envelope(struct ComposeRedrawData *rd)
   mutt_curses_set_color(MT_COLOR_NORMAL);
   mutt_paddstr(W, NONULL(e->env->subject));
 
-  draw_envelope_addr(HDR_REPLYTO, &e->env->reply_to, rd->win_envelope);
+  draw_envelope_addr(HDR_REPLYTO, &e->env->reply_to, rd->win_envelope, 1);
 
   mutt_curses_set_color(MT_COLOR_COMPOSE_HEADER);
   mutt_window_mvprintw(rd->win_envelope, HDR_FCC, 0, "%*s",
@@ -733,10 +832,7 @@ static void edit_address_list(int line, struct AddressList *al, struct MuttWindo
   }
 
   /* redraw the expanded list so the user can see the result */
-  buf[0] = '\0';
-  mutt_addrlist_write(al, buf, sizeof(buf), true);
-  mutt_window_move(win, line, HDR_XOFFSET);
-  mutt_paddstr(win->state.cols - MaxHeaderWidth, buf);
+  draw_envelope_addr(line, al, win, ((line == HDR_TO) || (line == HDR_CC)) ? 2 : 1);
 }
 
 /**
@@ -1133,7 +1229,7 @@ int mutt_compose_menu(struct Email *e, struct Buffer *fcc, struct Email *e_cur, 
 
   struct MuttWindow *envelope =
       mutt_window_new(MUTT_WIN_ORIENT_VERTICAL, MUTT_WIN_SIZE_FIXED,
-                      HDR_ATTACH_TITLE - 1, MUTT_WIN_SIZE_UNLIMITED);
+                      HDR_ATTACH_TITLE - 3, MUTT_WIN_SIZE_UNLIMITED);
   envelope->type = WT_PAGER;
 
   struct MuttWindow *abar = mutt_window_new(
