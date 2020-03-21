@@ -1410,6 +1410,10 @@ int mutt_compose_menu(struct Email *e, struct Buffer *fcc, struct Email *e_cur, 
       }
 
       case OP_COMPOSE_MOVE_UP:
+        rd->win_envelope->req_rows--;
+        mutt_window_reflow(NULL);
+        menu->redraw = REDRAW_FULL;
+        break;
         if (menu->current == 0)
         {
           mutt_error(_("Attachment is already at top"));
@@ -1426,6 +1430,10 @@ int mutt_compose_menu(struct Email *e, struct Buffer *fcc, struct Email *e_cur, 
         break;
 
       case OP_COMPOSE_MOVE_DOWN:
+        rd->win_envelope->req_rows++;
+        mutt_window_reflow(NULL);
+        menu->redraw = REDRAW_FULL;
+        break;
         if (menu->current == (actx->idxlen - 1))
         {
           mutt_error(_("Attachment is already at bottom"));
