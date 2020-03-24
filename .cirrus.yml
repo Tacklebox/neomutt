@@ -3,30 +3,25 @@ freebsd_instance:
 
 task:
   env:
-    # CIRRUS_CLONE_DEPTH: 3
-    # PKG_COMMON:
-    #   cyrus-sasl db5 docbook-xsl gdbm gettext-tools git gpgme iconv jimtcl
-    #   kyotocabinet libgpg-error libidn2 libxslt lmdb lua53 lynx notmuch pkgconf
-    #   qdbm tokyocabinet urlview
-    # CONFIGURE_COMMON:
-    #   --autocrypt --bdb --disable-idn --disable-inotify --fmemopen --full-doc
-    #   --gdbm --gpgme --gss --homespool --idn2 --kyotocabinet --lmdb
-    #   --locales-fix --lua --mixmaster --notmuch --pkgconf --qdbm --sasl
-    #   --testing --tokyocabinet --with-domain=example.com --with-lock=flock
-    #   --zlib
-    NEOMUTT_TEST_DIR: ${HOME}/test-files
+    CIRRUS_CLONE_DEPTH: 3
+    PKG_COMMON:
+      cyrus-sasl db5 docbook-xsl gdbm gettext-tools git gpgme iconv jimtcl
+      kyotocabinet libgpg-error libidn2 libxslt lmdb lua53 lynx notmuch pkgconf
+      qdbm tokyocabinet urlview
+    CONFIGURE_COMMON:
+      --autocrypt --bdb --disable-idn --disable-inotify --fmemopen --full-doc
+      --gdbm --gpgme --gss --homespool --idn2 --kyotocabinet --lmdb
+      --locales-fix --lua --mixmaster --notmuch --pkgconf --qdbm --sasl
+      --testing --tokyocabinet --with-domain=example.com --with-lock=flock
+      --zlib
+    NEOMUTT_TEST_DIR: ${CIRRUS_WORKING_DIR}/test-files
   matrix:
     - name: FreeBSD / GnuTLS
-      # install_script:
-      #   - pkg install -y ${PKG_COMMON} gnutls
-      #   - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${HOME}/test-files
-      # configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
-  # build_script: make
+      install_script:
+        - pkg install -y ${PKG_COMMON} gnutls
+        - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${NEOMUTT_TEST_DIR}
+      configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
+  build_script: make
   test_script:
-    - set
-    - echo HOME = ${HOME}
-    # - echo NEOMUTT_TEST_DIR = ${NEOMUTT_TEST_DIR}
-    # - find ${NEOMUTT_TEST_DIR} | sort
-    # - ls -alR ${NEOMUTT_TEST_DIR}
-    # - test/neomutt-test -v test_mutt_file_resolve_symlink
+    - test/neomutt-test -v test_mutt_file_resolve_symlink
     # - make test
