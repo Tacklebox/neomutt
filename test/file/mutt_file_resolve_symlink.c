@@ -23,9 +23,9 @@
 #define TEST_NO_MAIN
 #include "acutest.h"
 #include "config.h"
+#include <limits.h>
 #include "mutt/lib.h"
 #include "common.h"
-#include <limits.h>
 
 void test_mutt_file_resolve_symlink(void)
 {
