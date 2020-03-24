@@ -22,4 +22,10 @@ task:
         - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${HOME}/test-files
       configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
   build_script: make
-  test_script: make test
+  test_script:
+    - echo HOME = ${HOME}
+    - echo NEOMUTT_TEST_DIR = ${NEOMUTT_TEST_DIR}
+    - find ${NEOMUTT_TEST_DIR} | sort
+    - ls -alR ${NEOMUTT_TEST_DIR}
+    - test/neomutt-test -v test_mutt_file_resolve_symlink
+    # - make test
