@@ -33,3 +33,14 @@ void test_mutt_file_chmod_add(void)
     TEST_CHECK(mutt_file_chmod_add(NULL, 0) != 0);
   }
 }
+
+#if 0
+NULL
+missing
+brokenlink
+
+read
+  444 + 222
+symlink -> other
+  666 + 222
+#endif
