@@ -21,13 +21,12 @@ task:
         # - pkg install -y ${PKG_COMMON} gnutls
         - pkg install -y git
         - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${NEOMUTT_TEST_DIR}
-        - ls -l ${NEOMUTT_TEST_DIR}
-        - pwd
+        - which bash
         - cd ${NEOMUTT_TEST_DIR}
         - pwd
-        - cd ${NEOMUTT_TEST_DIR} && pwd
-        - (cd ${NEOMUTT_TEST_DIR} && pwd)
-        - cd ${NEOMUTT_TEST_DIR} && ./setup.sh
+        - ls -l
+        - ./setup.sh
+        - setup.sh
       # configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
   # build_script: make
   # test_script:
