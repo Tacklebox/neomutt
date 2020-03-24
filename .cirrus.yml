@@ -19,7 +19,7 @@ task:
     - name: FreeBSD / GnuTLS
       install_script:
         # - pkg install -y ${PKG_COMMON} gnutls
-        - pkg install -y git
+        - pkg install -y git bash
         - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${NEOMUTT_TEST_DIR}
         - cd ${NEOMUTT_TEST_DIR}
         - pwd
