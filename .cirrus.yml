@@ -5,7 +5,7 @@ task:
   env:
     CIRRUS_CLONE_DEPTH: 3
     PKG_COMMON:
-      cyrus-sasl db5 docbook-xsl gdbm gettext-tools gpgme iconv jimtcl
+      cyrus-sasl db5 docbook-xsl gdbm gettext-tools git gpgme iconv jimtcl
       kyotocabinet libgpg-error libidn2 libxslt lmdb lua53 lynx notmuch pkgconf
       qdbm tokyocabinet urlview
     CONFIGURE_COMMON:
