@@ -21,10 +21,10 @@ task:
         # - pkg install -y ${PKG_COMMON} gnutls
         - pkg install -y git
         - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${NEOMUTT_TEST_DIR}
-        - which bash
         - cd ${NEOMUTT_TEST_DIR}
         - pwd
         - ls -l
+        - which bash
         - ./setup.sh
         - setup.sh
       # configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
