@@ -20,6 +20,7 @@ task:
       install_script:
         - pkg install -y ${PKG_COMMON} gnutls
         - git clone --depth 1 https://github.com/neomutt/neomutt-test-files.git ${NEOMUTT_TEST_DIR}
+        - (cd ${NEOMUTT_TEST_DIR} && ./setup.sh)
       configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
   build_script: make
   test_script:
