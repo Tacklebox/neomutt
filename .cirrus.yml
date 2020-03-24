@@ -23,5 +23,4 @@ task:
       configure_script: ./configure ${CONFIGURE_COMMON} --gnutls
   build_script: make
   test_script:
-    - test/neomutt-test -v test_mutt_file_resolve_symlink
-    # - make test
+    - make test
